@@ -1,12 +1,17 @@
 ## Highlights
-
-- **6/6 attack scenarios detected** - 267 alerts from 292 packets across SYN flood, DNS tunneling, ARP spoofing, ICMP tunneling, brute force, and port scan
-- **50K-packet benchmark** - full pipeline processing with p50/p95/p99 latency percentiles and pipeline overhead reporting
-- **10 MITRE ATT&CK-mapped detectors** - with per-alert confidence scoring, structured evidence factors, and natural-language explainability
-- **Kyber-512 KEM implemented from scratch** - NTT-optimized O(n log n) polynomial multiplication, no PQC library used
-- **AES-256-GCM encrypted logging** - key derived via Kyber KEM with automatic rotation every 10,000 entries
-- **SHA3-256 hash-chain integrity** - blockchain-style tamper-evident log chain, every entry verifiable
-- **Deep TLS handshake analysis** - 35+ cipher suites, SNI extraction, JA3 fingerprinting, grades A+ through F
-- **Distributed sensor-aggregator architecture** - multi-node TCP capture with heartbeat health monitoring
-- **Dual dashboards** - Rich terminal UI and Flask + Chart.js web dashboard with REST API
-- **Self-tests all passed** - PQC, Protocols, IDS, Analytics, Distributed
+- **Hybrid AI detection pipeline** - ensemble of Isolation Forest, Extended Isolation Forest, and Autoencoder with unified hybrid scoring for robust zero-day anomaly detection  
+- **Closed-loop ML inference pipeline** - packet → flow → feature extraction → anomaly scoring → conformal calibration → feedback into scoring and analytics for continuous refinement  
+- **Conformal prediction integration** - statistically calibrated confidence scores (0.0–1.0) enabling uncertainty-aware intrusion detection instead of raw anomaly outputs  
+- **End-to-end L2–L7 deep packet intelligence** - full protocol stack parsing with flow reconstruction and feature extraction optimized for ML-based detection  
+- **Real-time distributed detection architecture** - sensor–aggregator model with multi-node scalability and fault-tolerant streaming inference  
+- **High-performance multi-process pipeline** - optimized packet → feature → inference flow with sub-millisecond p95 latency and high throughput under load  
+- **Advanced anomaly scoring system** - hybrid ensemble fusion reducing false positives while maintaining high recall across diverse attack patterns  
+- **PQC-aware network analysis layer** - detection of quantum-vulnerable cryptographic usage and integration hooks for post-quantum secure transport systems  
+- **Detection quality evaluation framework** - built-in metrics for accuracy, false positive rate, latency percentiles (p50/p95/p99), and model confidence calibration  
+- **CICIDS dataset benchmarking support** - reproducible evaluation pipeline for validating detection performance on real-world intrusion datasets  
+- **Flow-aware analytics engine** - session tracking, protocol distribution, top talkers, and traffic intelligence integrated with detection pipeline  
+- **Dual visualization systems** - real-time terminal dashboard and web-based ML analytics dashboard for monitoring traffic, anomalies, and model outputs  
+- **PCAP replay and simulation support** - controlled testing environment for validating detection behavior against synthetic and recorded traffic  
+- **Modular research-grade architecture** - clean separation of detection, analytics, PQC, and distributed systems enabling extensibility and experimentation  
+- **Production-oriented design philosophy** - bridges research concepts (ML + conformal prediction + PQC) with practical deployment considerations  
+- **Self-test and validation suite** - full system verification across protocols, detection engine, ML models, analytics, and distributed components  

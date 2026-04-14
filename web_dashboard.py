@@ -484,6 +484,41 @@ def create_web_app(data_store: DashboardDataStore) -> Optional[Any]:
     def api_flows():
         return jsonify(data_store.active_flows[:50])
 
+    @app.route("/api/pqc/migration")
+    def api_pqc_migration():
+        """PQC migration readiness endpoint."""
+        try:
+            scorer = getattr(data_store, '_pqc_migration_scorer', None)
+            if scorer is None:
+                from pqc_migration_scorer import PQCMigrationScorer
+                data_store._pqc_migration_scorer = PQCMigrationScorer()
+                scorer = data_store._pqc_migration_scorer
+            return jsonify(scorer.get_api_response())
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/metrics")
+    def prometheus_metrics():
+        """Prometheus metrics endpoint."""
+        try:
+            from metrics import get_metrics
+            m = get_metrics()
+            return m.generate_metrics(), 200, {'Content-Type': m.content_type}
+        except Exception as e:
+            return f"# Error: {e}\n", 500, {'Content-Type': 'text/plain'}
+
+    @app.route("/health")
+    def health_check():
+        """Health check endpoint for Docker/Kubernetes liveness probes."""
+        state = data_store.get_state()
+        return jsonify({
+            "status": "ok",
+            "uptime": state["performance"].get("uptime", 0),
+            "total_packets": state["performance"].get("total_packets", 0),
+            "total_alerts": len(state["alerts"]),
+            "pqc_enabled": state["pqc"].get("enabled", False),
+        })
+
     return app
 
 

@@ -64,7 +64,7 @@ If the answer is no — you're blind. Quantum Sniffer asks a fundamentally diffe
 
 > *"Does this behavior make statistical sense at all?"*
 
-This is a **research-grade, production-capable network defense platform** built entirely from scratch in Python — no Snort rules, no Suricata signatures, no YARA. Instead: raw protocol dissection from bytes up, a five-layer ML anomaly stack (Extended Isolation Forest + PyTorch Autoencoder + standard iForest + conformal predictor + temporal scorer), an ML-driven DPI feedback controller, and a post-quantum cryptographic transport layer conforming to NIST FIPS 203.
+This is a **research-grade, production-worthy network defense platform** built entirely from scratch in Python with raw protocol dissection from bytes up, a five-layer ML anomaly stack (Extended Isolation Forest + PyTorch Autoencoder + standard iForest + conformal predictor + temporal scorer), an ML-driven DPI feedback controller, and a post-quantum cryptographic transport layer conforming to NIST FIPS 203.
 
 v6.0 introduces the **ML-DPI inversion**: the machine learning stack now *controls* the deep packet inspection engine rather than sitting downstream of it.
 
@@ -632,7 +632,7 @@ Every IDS alert includes four structured components:
 | Python-Native (auditable) | ✓ | ✗ (C) | ✗ (C/Rust) | ✗ (C++) | ✗ (C) |
 | IND-CCA2 KEM | ✓ (FIPS 203) | N/A | N/A | N/A | N/A |
 
-> *Suricata has no PQC. Darktrace has no statistical confidence bounds on its ML alerts. Quantum Sniffer v6.0 provides what both need to become — with a working prototype, production-grade test coverage, a novel ML-driven DPI architecture, and conformal prediction calibration — implemented from scratch by a single ECE 6th semester student.*
+> *Suricata has no PQC. Darktrace has no statistical confidence bounds on its ML alerts. Quantum Sniffer v6.0 provides what both need to become — with a working prototype, production-grade test coverage, a novel ML-driven DPI architecture, and conformal prediction calibration.*
 
 ---
 

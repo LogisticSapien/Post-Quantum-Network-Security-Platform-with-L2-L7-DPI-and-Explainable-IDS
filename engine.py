@@ -32,6 +32,8 @@ from ids import IDSEngine, Severity
 from analytics import AnalyticsManager
 from pqc import PQCSecureLogger, QuantumThreatAnalyzer
 from dashboard import Dashboard, SimplePrinter, PacketFeed
+from iforest_detector import IForestNetworkDetector
+from flow_tracker import FlowFeatureTracker
 
 
 class CaptureEngine:
@@ -52,6 +54,7 @@ class CaptureEngine:
         sensitivity: str = "medium",
         geo_enabled: bool = False,
         export_path: Optional[str] = None,
+        iforest_enabled: bool = True,
     ):
         self.interface = interface
         self.bpf_filter = bpf_filter
@@ -62,6 +65,14 @@ class CaptureEngine:
         self.ids = IDSEngine(sensitivity=sensitivity)
         self.analytics = AnalyticsManager(geo_enabled=geo_enabled)
         self.qt_analyzer = QuantumThreatAnalyzer()
+
+        # Isolation Forest zero-day detector
+        if iforest_enabled:
+            self.iforest = IForestNetworkDetector()
+            self.flow_tracker = FlowFeatureTracker(max_flows=10000)
+        else:
+            self.iforest = None
+            self.flow_tracker = None
 
         if pqc_enabled:
             self.pqc_logger = PQCSecureLogger(log_dir=log_dir)
@@ -85,13 +96,18 @@ class CaptureEngine:
         self._worker_thread: Optional[threading.Thread] = None
         self._stats_thread: Optional[threading.Thread] = None
         self._flush_interval = 60  # seconds
+        self._packets_dropped = 0
 
     def start(self):
         """Start packet capture and processing."""
         self._running = True
 
-        # Signal handler
+        # Signal handlers
         signal.signal(signal.SIGINT, self._shutdown_handler)
+        try:
+            signal.signal(signal.SIGTERM, self._shutdown_handler)
+        except (OSError, ValueError):
+            pass  # SIGTERM not available on Windows in some contexts
 
         # Worker thread
         self._worker_thread = threading.Thread(
@@ -153,12 +169,22 @@ class CaptureEngine:
             self._cleanup()
 
     def _packet_callback(self, packet):
-        """Scapy callback — enqueue raw bytes for processing."""
+        """Scapy callback — enqueue raw bytes for processing.
+
+        Uses drop-based backpressure: if queue is full, packet is dropped
+        and counted. This prevents memory exhaustion under burst traffic.
+        """
         try:
             raw = bytes(packet)
             self._packet_queue.put_nowait(raw)
         except Exception:
-            pass
+            self._packets_dropped += 1
+            if self._packets_dropped % 1000 == 1:
+                import logging
+                logging.getLogger(__name__).warning(
+                    f"Queue full — {self._packets_dropped} packets dropped "
+                    f"(queue_size={self._packet_queue.maxsize})"
+                )
 
     def _processing_loop(self):
         """Worker thread — dequeue and process packets."""
@@ -306,6 +332,23 @@ class CaptureEngine:
             # IDS analysis
             alerts = self.ids.analyze_packet(ip=ip, tcp=tcp)
             self._handle_alerts(alerts)
+
+            # Isolation Forest detection + flow tracking
+            if self.iforest:
+                is_syn = bool(getattr(tcp, 'is_syn', False))
+                iforest_alert = self.iforest.record_packet(
+                    "TCP", src, dst, pkt_size, tcp.src_port, tcp.dst_port, is_syn
+                )
+                if iforest_alert:
+                    self._handle_alerts([iforest_alert])
+
+                # Per-flow tracking for slow exfil detection
+                if self.flow_tracker:
+                    self.flow_tracker.record_packet(
+                        src, dst, tcp.dst_port, pkt_size,
+                        protocol="TCP", is_syn=is_syn,
+                    )
+
             self._pqc_log(f"TCP {conn} [{tcp.flag_str}]")
             return
 
@@ -415,17 +458,33 @@ class CaptureEngine:
     # ── Shutdown ──
 
     def _shutdown_handler(self, signum, frame):
-        """Graceful shutdown."""
+        """Graceful shutdown on SIGINT/SIGTERM."""
         self._running = False
 
     def _stop_display(self):
         if self.dashboard:
             self.dashboard.stop()
 
+    def _drain_queue(self):
+        """Process any remaining packets in the queue."""
+        drained = 0
+        while not self._packet_queue.empty():
+            try:
+                raw = self._packet_queue.get_nowait()
+                self._process_packet(raw)
+                drained += 1
+            except Empty:
+                break
+            except Exception:
+                continue
+        if drained > 0:
+            print(f"   Drained {drained} buffered packets")
+
     def _cleanup(self):
-        """Clean up resources."""
+        """Clean up resources with proper queue drain and PQC finalization."""
         self._running = False
 
+        # 1. Stop the sniffer
         if self._sniffer:
             try:
                 self._sniffer.stop()
@@ -434,16 +493,27 @@ class CaptureEngine:
 
         self._stop_display()
 
-        # Final flush
+        # 2. Drain remaining packet queue
+        self._drain_queue()
+
+        # 3. Stop flow evictor thread
+        try:
+            self.analytics.flows.stop()
+        except Exception:
+            pass
+
+        # 4. Finalize PQC logger (sentinel entry + flush)
         if self.pqc_logger:
-            filename = self.pqc_logger.flush_to_disk()
-            print(f"\n📝 PQC logs flushed to: {filename}")
+            filename = self.pqc_logger.finalize()
+            if filename:
+                print(f"\n📝 PQC logs finalized to: {filename}")
             stats = self.pqc_logger.stats
             print(f"   Entries: {stats['entries_logged']}, "
                   f"Chain intact: {stats['chain_intact']}, "
-                  f"Key rotations: {stats['key_rotations']}")
+                  f"Key rotations: {stats['key_rotations']}, "
+                  f"Clean close: {stats['finalized']}")
 
-        # Export analytics
+        # 5. Export analytics
         if self.export_path:
             try:
                 data = self.analytics.export_json()
@@ -453,7 +523,7 @@ class CaptureEngine:
             except Exception as e:
                 print(f"❌ Export failed: {e}")
 
-        # Print summary
+        # 6. Print summary
         summary = self.analytics.summary
         print(f"\n{'='*60}")
         print(f"  ⚛️  QUANTUM SNIFFER — Session Summary")
@@ -463,6 +533,7 @@ class CaptureEngine:
         print(f"  Total bytes:    {bw.format_bytes(summary['total_bytes'])}")
         print(f"  Duration:       {summary['uptime_seconds']:.1f}s")
         print(f"  Threats found:  {self.ids.stats['threats_detected']}")
+        print(f"  Flows evicted:  {self.analytics.flows.flows_evicted_total}")
 
         qt = self.qt_analyzer.vulnerability_summary
         print(f"  Cipher suites:  {qt['total_analyzed']} analyzed, "
@@ -472,3 +543,4 @@ class CaptureEngine:
         if protos:
             print(f"  Top protocols:  {', '.join(f'{p}({c})' for p, c in protos[:5])}")
         print(f"{'='*60}\n")
+

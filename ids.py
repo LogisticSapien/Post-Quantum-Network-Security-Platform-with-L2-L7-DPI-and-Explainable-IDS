@@ -18,6 +18,7 @@ Real-time threat detection engine with EXPLAINABILITY:
 
 from __future__ import annotations
 
+import ipaddress
 import math
 import time
 from collections import defaultdict, deque
@@ -218,6 +219,34 @@ class IDSConfig:
     icmp_rate_threshold: int = 30
     icmp_rate_window: float = 10.0
 
+    # ── Whitelist (false-positive suppression) ──
+    whitelist_ip_cidrs: List[str] = field(default_factory=lambda: [
+        # Cloudflare
+        "104.16.0.0/12", "162.158.0.0/15", "173.245.48.0/20",
+        "103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22",
+        "141.101.64.0/18", "108.162.192.0/18", "190.93.240.0/20",
+        "188.114.96.0/20", "197.234.240.0/22", "198.41.128.0/17",
+        # Akamai (some common ranges)
+        "23.0.0.0/12", "104.64.0.0/10",
+        # Fastly
+        "151.101.0.0/16",
+    ])
+    whitelist_multicast_ips: Set[str] = field(default_factory=lambda: {
+        "239.255.255.250",  # SSDP
+        "224.0.0.251",      # mDNS
+        "224.0.0.252",      # LLMNR
+        "224.0.0.1",        # All Hosts
+        "224.0.0.2",        # All Routers
+    })
+    whitelist_dns_domains: Set[str] = field(default_factory=lambda: {
+        "windowsupdate.com", "microsoft.com", "googleapis.com",
+        "gstatic.com", "google.com", "apple.com", "icloud.com",
+        "akamaized.net", "cloudflare.com", "amazonaws.com",
+        "azure.com", "live.com", "office.com", "office365.com",
+        "msftconnecttest.com", "digicert.com", "verisign.com",
+        "github.com", "npmjs.org", "pypi.org",
+    })
+
 
 # ──────────────────────────────────────────────────────────────────────
 # IDS Engine
@@ -244,7 +273,31 @@ class IDSEngine:
             "total_packets_analyzed": 0,
             "threats_detected": 0,
             "severity_counts": defaultdict(int),
+            "whitelist_suppressed": 0,
         }
+
+        # Pre-parse CIDR whitelist into network objects
+        self._whitelist_nets = []
+        for cidr in self.config.whitelist_ip_cidrs:
+            try:
+                self._whitelist_nets.append(ipaddress.ip_network(cidr, strict=False))
+            except ValueError:
+                pass
+
+    def _is_whitelisted_ip(self, ip_str: Optional[str]) -> bool:
+        """Check if an IP falls within any whitelisted CIDR range."""
+        if not ip_str:
+            return False
+        try:
+            addr = ipaddress.ip_address(ip_str)
+        except ValueError:
+            return False
+        return any(addr in net for net in self._whitelist_nets)
+
+    def _is_whitelisted_domain(self, domain: str) -> bool:
+        """Check if a domain matches any whitelisted suffix."""
+        domain_lower = domain.lower()
+        return any(domain_lower.endswith(d) for d in self.config.whitelist_dns_domains)
 
     def _apply_sensitivity(self, level: str):
         if level == "low":
@@ -357,6 +410,11 @@ class IDSEngine:
         if unique_ports < self.config.port_scan_threshold:
             return None
 
+        # Whitelist check: suppress CDN reconnection bursts
+        if self._is_whitelisted_ip(src_ip):
+            self.stats["whitelist_suppressed"] += 1
+            return None
+
         scan_methods = self._scan_types.get(src_ip, {"SYN"})
         scan_str = "/".join(sorted(scan_methods))
         confidence = min(1.0, unique_ports / (self.config.port_scan_threshold * 2))
@@ -434,6 +492,10 @@ class IDSEngine:
 
         for q in dns.questions:
             name = q.name
+            # Whitelist: skip known legitimate domains
+            if self._is_whitelisted_domain(name):
+                self.stats["whitelist_suppressed"] += 1
+                continue
             labels = name.split('.')
 
             for label in labels:
@@ -603,6 +665,10 @@ class IDSEngine:
 
     def _check_ttl_anomaly(self, ip: IPv4Packet, now: float) -> Optional[ThreatEvent]:
         if ip.ttl < self.config.ttl_min_suspicious:
+            return None
+        # Whitelist: skip multicast destinations (SSDP, mDNS, etc.)
+        if ip.dst_ip in self.config.whitelist_multicast_ips:
+            self.stats["whitelist_suppressed"] += 1
             return None
         return ThreatEvent(
             timestamp=now, severity=Severity.LOW, category="TTL_ANOMALY",

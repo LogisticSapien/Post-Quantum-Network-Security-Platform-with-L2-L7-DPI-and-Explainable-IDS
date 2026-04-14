@@ -52,9 +52,9 @@ class AttackSimulator:
 
         all_passed = True
         for name, sim_fn in sims:
-            print(f"\n{'─' * 70}")
+            print(f"\n{'-' * 70}")
             print(f"  ATTACK: {name}")
-            print(f"{'─' * 70}")
+            print(f"{'-' * 70}")
             result = sim_fn()
             self.results[name] = result
             status = "DETECTED" if result["detected"] else "MISSED"
@@ -96,9 +96,9 @@ class AttackSimulator:
             print(f"\n  MISSED: {', '.join(missed)}")
 
         # Deep TLS demo
-        print(f"\n{'─' * 70}")
+        print(f"\n{'-' * 70}")
         print(f"  DEEP TLS ANALYSIS DEMO")
-        print(f"{'─' * 70}")
+        print(f"{'-' * 70}")
         self._demo_tls_analysis()
 
         print(f"\n{'=' * 70}")
@@ -278,9 +278,9 @@ class AttackSimulator:
         """Demo the deep TLS analysis on different cipher suites."""
         demos = [
             (0x002F, 0x0302, None, "Legacy RSA (TLS 1.1)"),
-            (0xC02F, 0x0303, None, "Modern ECDHE (TLS 1.2)"),
+            (0x1301, 0x0304, [29, 0x6399], "Upgraded ECDHE + PQ Hybrid (TLS 1.3)"),
             (0x1301, 0x0304, [29, 0x6399], "Quantum-safe (TLS 1.3 + PQ)"),
-            (0x009C, 0x0303, None, "RSA-GCM no FS (TLS 1.2)"),
+            (0x1301, 0x0304, [29], "Upgraded ECDHE-GCM (TLS 1.3)"),
         ]
 
         for cs_id, ver, groups, label in demos:

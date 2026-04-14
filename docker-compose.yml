@@ -1,0 +1,67 @@
+# ═══════════════════════════════════════════════════════════════════
+# Quantum Sniffer — Docker Compose
+# ═══════════════════════════════════════════════════════════════════
+# Deploy full distributed stack:
+#   docker-compose up
+#
+# Services:
+#   aggregator  — Central collection + web dashboard
+#   sensor-1    — Capture node 1
+#   sensor-2    — Capture node 2
+#   prometheus  — Metrics collection
+# ═══════════════════════════════════════════════════════════════════
+
+version: "3.8"
+
+services:
+  aggregator:
+    build: .
+    command: ["--mode", "aggregator", "--web-dashboard", "--pqc-transport"]
+    ports:
+      - "5000:5000"   # Web dashboard
+      - "9090:9090"   # Prometheus metrics
+      - "9100:9100"   # Sensor connections
+    volumes:
+      - ./pqc_logs:/app/pqc_logs
+      - ./forensics:/app/forensics
+      - ./config.yaml:/app/config.yaml:ro
+    environment:
+      - QS_LOGGING_LEVEL=INFO
+      - QS_DISTRIBUTED_MAXCLIENTS=50
+    restart: unless-stopped
+
+  sensor-1:
+    build: .
+    command: ["--mode", "sensor", "--aggregator", "aggregator:9100", "--pqc-transport"]
+    network_mode: host
+    cap_add:
+      - NET_RAW
+    depends_on:
+      - aggregator
+    environment:
+      - QS_CAPTURE_INTERFACE=eth0
+      - QS_LOGGING_LEVEL=INFO
+    restart: unless-stopped
+
+  sensor-2:
+    build: .
+    command: ["--mode", "sensor", "--aggregator", "aggregator:9100", "--pqc-transport"]
+    network_mode: host
+    cap_add:
+      - NET_RAW
+    depends_on:
+      - aggregator
+    environment:
+      - QS_CAPTURE_INTERFACE=eth1
+      - QS_LOGGING_LEVEL=INFO
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - aggregator
+    restart: unless-stopped

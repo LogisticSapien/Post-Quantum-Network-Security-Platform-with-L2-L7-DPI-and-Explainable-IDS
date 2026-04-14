@@ -127,15 +127,16 @@ class ProtocolStats:
 # ──────────────────────────────────────────────────────────────────────
 
 class TopTalkers:
-    """Track most active IP addresses."""
+    """Track most active IP addresses with bounded memory."""
 
-    def __init__(self, max_tracked: int = 500):
+    def __init__(self, max_tracked: int = 1000):
         self.tx_bytes: Counter = Counter()
         self.rx_bytes: Counter = Counter()
         self.tx_packets: Counter = Counter()
         self.rx_packets: Counter = Counter()
         self._connections: Dict[str, Set[str]] = defaultdict(set)
         self.max_tracked = max_tracked
+        self.evictions: int = 0
 
     def record(self, src_ip: str, dst_ip: str, size: int):
         self.tx_bytes[src_ip] += size
@@ -143,6 +144,25 @@ class TopTalkers:
         self.tx_packets[src_ip] += 1
         self.rx_packets[dst_ip] += 1
         self._connections[src_ip].add(dst_ip)
+        # Evict lowest-count entries when over capacity
+        if len(self.tx_bytes) > self.max_tracked:
+            self._evict()
+
+    def _evict(self):
+        """Prune lowest-count entries down to max_tracked."""
+        excess = len(self.tx_bytes) - self.max_tracked
+        if excess <= 0:
+            return
+        # Keep top entries, remove the rest
+        keep = {ip for ip, _ in self.tx_bytes.most_common(self.max_tracked)}
+        for ip in list(self.tx_bytes.keys()):
+            if ip not in keep:
+                del self.tx_bytes[ip]
+                self.rx_bytes.pop(ip, None)
+                self.tx_packets.pop(ip, None)
+                self.rx_packets.pop(ip, None)
+                self._connections.pop(ip, None)
+                self.evictions += 1
 
     @property
     def top_senders(self) -> List[Tuple[str, int]]:
@@ -206,13 +226,47 @@ class TCPFlow:
 
 
 class FlowTracker:
-    """Track TCP connections with a simplified state machine."""
+    """Track TCP connections with a simplified state machine and TTL eviction."""
 
-    def __init__(self, timeout: float = 120.0):
+    def __init__(self, timeout: float = 120.0, eviction_ttl: float = 300.0):
         self.flows: Dict[str, TCPFlow] = {}
         self.completed_flows: deque = deque(maxlen=1000)
         self.timeout = timeout
+        self.eviction_ttl = eviction_ttl  # 5 minutes hard TTL
         self._lock = threading.Lock()
+        self.flows_evicted_total: int = 0
+        # Start background eviction thread
+        self._eviction_running = True
+        self._eviction_thread = threading.Thread(
+            target=self._eviction_loop, daemon=True, name="flow-evictor"
+        )
+        self._eviction_thread.start()
+
+    def _eviction_loop(self):
+        """Background thread: evict stale flows every 60s."""
+        while self._eviction_running:
+            time.sleep(60)
+            self._evict_stale()
+
+    def _evict_stale(self) -> int:
+        """Evict flows with last_seen > eviction_ttl. Returns count evicted."""
+        now = time.time()
+        evicted = 0
+        with self._lock:
+            stale = [k for k, f in self.flows.items()
+                     if now - f.last_seen > self.eviction_ttl]
+            for k in stale:
+                flow = self.flows.pop(k, None)
+                if flow:
+                    flow.state = FlowState.CLOSED
+                    self.completed_flows.append(flow)
+                    evicted += 1
+        self.flows_evicted_total += evicted
+        return evicted
+
+    def stop(self):
+        """Stop the eviction thread."""
+        self._eviction_running = False
 
     def _flow_key(self, src_ip: str, src_port: int, dst_ip: str, dst_port: int) -> str:
         # Normalize direction
@@ -275,7 +329,7 @@ class FlowTracker:
             self.completed_flows.append(flow)
 
     def cleanup_stale(self):
-        """Remove stale flows."""
+        """Remove stale flows (uses soft timeout)."""
         now = time.time()
         with self._lock:
             stale = [k for k, f in self.flows.items()

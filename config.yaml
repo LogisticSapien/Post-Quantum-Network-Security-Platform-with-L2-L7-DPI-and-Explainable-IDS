@@ -1,0 +1,56 @@
+# ═══════════════════════════════════════════════════════════════════
+# Quantum Sniffer — Configuration File
+# ═══════════════════════════════════════════════════════════════════
+# Priority: CLI flags > environment variables (QS_ prefix) > this file > defaults
+# Environment example: QS_CAPTURE_INTERFACE=eth0
+
+capture:
+  interface: null             # Network interface (null = default)
+  bpf_filter: null            # BPF filter string (e.g., "tcp port 80")
+  queue_size: 10000           # Packet processing queue depth
+  backpressure_strategy: drop # "drop" (discard overflow) | "block" (pause capture)
+
+ids:
+  sensitivity: medium         # "low" | "medium" | "high"
+  port_scan_threshold: 15     # Unique ports before alerting
+  syn_flood_threshold: 100    # SYN rate before alerting
+  brute_force_threshold: 10   # Auth connections before alerting
+  dns_entropy_threshold: 3.5  # Shannon entropy threshold for DNS tunneling
+
+pqc:
+  enabled: true               # Enable PQC-encrypted audit logging
+  log_dir: ./pqc_logs         # Directory for encrypted log files
+  transport_enabled: true     # Enable PQC-encrypted alert transport
+  key_rotation_interval: 1000 # Messages before automatic key rotation
+  replay_window_sec: 30.0     # Max clock skew for replay protection (seconds)
+
+distributed:
+  mode: null                  # null | "sensor" | "aggregator"
+  aggregator_host: localhost
+  aggregator_port: 9100
+  max_clients: 50             # Max sensor connections (aggregator)
+  heartbeat_interval: 10      # Heartbeat interval (seconds)
+  reconnect_delay: 5          # Sensor reconnect delay (seconds)
+  max_reconnect_attempts: 10  # Max reconnect attempts before giving up
+
+dashboard:
+  terminal_enabled: true      # Rich terminal dashboard
+  web_enabled: false          # Flask web dashboard
+  web_port: 5000
+  web_host: "0.0.0.0"
+
+metrics:
+  enabled: true               # Prometheus metrics
+  port: 9090                  # Metrics HTTP port
+
+logging:
+  level: INFO                 # DEBUG | INFO | WARNING | ERROR | CRITICAL
+  file: null                  # Log file path (null = stderr only)
+  format: "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+  max_file_size_mb: 50        # Max log file size before rotation
+  backup_count: 3             # Number of rotated log files to keep
+
+export:
+  analytics_path: null        # JSON analytics export path
+  stix_path: null             # STIX 2.1 bundle export path
+  geo_enabled: false          # GeoIP lookups (requires internet)

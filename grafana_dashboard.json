@@ -1,0 +1,131 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": true,
+  "panels": [
+    {
+      "title": "Packets/sec",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 3, "x": 0, "y": 0},
+      "targets": [{"expr": "qs_packets_per_sec", "legendFormat": "pkt/s"}],
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 10000}, {"color": "red", "value": 50000}]}}}
+    },
+    {
+      "title": "Bandwidth",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 3, "x": 3, "y": 0},
+      "targets": [{"expr": "qs_bytes_per_sec", "legendFormat": "B/s"}],
+      "fieldConfig": {"defaults": {"unit": "Bps", "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 10485760}]}}}
+    },
+    {
+      "title": "Total Alerts",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 3, "x": 6, "y": 0},
+      "targets": [{"expr": "sum(qs_alerts_total)", "legendFormat": "alerts"}],
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "green", "value": null}, {"color": "orange", "value": 10}, {"color": "red", "value": 100}]}}}
+    },
+    {
+      "title": "Active Flows",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 3, "x": 9, "y": 0},
+      "targets": [{"expr": "qs_active_flows", "legendFormat": "flows"}],
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "blue", "value": null}]}}}
+    },
+    {
+      "title": "Drops",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 3, "x": 12, "y": 0},
+      "targets": [{"expr": "qs_drops_total", "legendFormat": "drops"}],
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}}
+    },
+    {
+      "title": "PQC Encrypted Entries",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 3, "x": 15, "y": 0},
+      "targets": [{"expr": "qs_pqc_encrypted_entries", "legendFormat": "entries"}],
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "purple", "value": null}]}}}
+    },
+    {
+      "title": "Queue Size",
+      "type": "gauge",
+      "gridPos": {"h": 4, "w": 3, "x": 18, "y": 0},
+      "targets": [{"expr": "qs_queue_size", "legendFormat": "queue"}],
+      "fieldConfig": {"defaults": {"min": 0, "max": 10000, "thresholds": {"steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 5000}, {"color": "red", "value": 8000}]}}}
+    },
+    {
+      "title": "Uptime",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 3, "x": 21, "y": 0},
+      "targets": [{"expr": "qs_uptime_seconds", "legendFormat": "uptime"}],
+      "fieldConfig": {"defaults": {"unit": "s", "color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "green", "value": null}]}}}
+    },
+    {
+      "title": "Packets/sec Over Time",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+      "targets": [{"expr": "qs_packets_per_sec", "legendFormat": "pkt/s"}],
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"fillOpacity": 15, "lineWidth": 2, "spanNulls": true}}}
+    },
+    {
+      "title": "Alerts by Severity",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+      "targets": [
+        {"expr": "rate(qs_alerts_total{severity='CRITICAL'}[1m])", "legendFormat": "CRITICAL"},
+        {"expr": "rate(qs_alerts_total{severity='HIGH'}[1m])", "legendFormat": "HIGH"},
+        {"expr": "rate(qs_alerts_total{severity='MEDIUM'}[1m])", "legendFormat": "MEDIUM"},
+        {"expr": "rate(qs_alerts_total{severity='LOW'}[1m])", "legendFormat": "LOW"}
+      ],
+      "fieldConfig": {"defaults": {"custom": {"fillOpacity": 30, "stacking": {"mode": "normal"}}}}
+    },
+    {
+      "title": "Packet Processing Latency",
+      "type": "histogram",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "targets": [{"expr": "rate(qs_packet_processing_seconds_bucket[5m])", "legendFormat": "{{le}}"}],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "title": "Alerts by Category",
+      "type": "piechart",
+      "gridPos": {"h": 8, "w": 6, "x": 12, "y": 12},
+      "targets": [{"expr": "sum by (category) (qs_alerts_total)", "legendFormat": "{{category}}"}]
+    },
+    {
+      "title": "Packets by Protocol",
+      "type": "piechart",
+      "gridPos": {"h": 8, "w": 6, "x": 18, "y": 12},
+      "targets": [{"expr": "sum by (protocol) (qs_packets_total)", "legendFormat": "{{protocol}}"}]
+    },
+    {
+      "title": "Bytes Throughput",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 20},
+      "targets": [{"expr": "qs_bytes_per_sec", "legendFormat": "bytes/s"}],
+      "fieldConfig": {"defaults": {"unit": "Bps", "custom": {"fillOpacity": 20, "gradientMode": "scheme"}}}
+    },
+    {
+      "title": "IDS Tracked Sources",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 20},
+      "targets": [
+        {"expr": "qs_ids_tracked_sources", "legendFormat": "tracked IPs"},
+        {"expr": "qs_active_flows", "legendFormat": "active flows"}
+      ]
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": ["quantum-sniffer", "security", "network"],
+  "templating": {"list": []},
+  "time": {"from": "now-15m", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Quantum Sniffer Dashboard",
+  "uid": "quantum-sniffer",
+  "version": 1
+}
